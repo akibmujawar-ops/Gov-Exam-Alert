@@ -1,47 +1,31 @@
-import requests
-from bs4 import BeautifulSoup
-from parser import parse_job
+from rapidfuzz import fuzz
 
-headers = {"User-Agent": "Mozilla/5.0"}
+def filter_jobs(jobs, seen_jobs):
 
-websites = [
-    "https://www.mahanmk.com/",
-    "https://www.freejobalert.com/",
-    "https://www.sarkariresult.com/"
-]
+    filtered = []
 
-def scrape_jobs():
+    for job in jobs:
 
-    jobs = []
+        # eligibility filter
+        if not any(x in job["education"] for x in ["10th", "12th", "Not found"]):
+            continue
 
-    for site in websites:
+        # duplicates inside current batch
+        duplicate = False
 
-        try:
-            r = requests.get(site, headers=headers, timeout=20)
+        for existing in filtered:
 
-            soup = BeautifulSoup(r.text, "lxml")
+            if fuzz.ratio(job["title"], existing["title"]) > 85:
+                duplicate = True
+                break
 
-            lines = soup.get_text("\n").split("\n")
+        if duplicate:
+            continue
 
-            for line in lines:
+        # already sent check
+        if job["title"] in seen_jobs:
+            continue
 
-                line = line.strip()
+        filtered.append(job)
 
-                if len(line) < 40:
-                    continue
-
-                lower = line.lower()
-
-                if any(k in lower for k in [
-                    "ssc", "railway", "bank",
-                    "recruitment", "vacancy",
-                    "scholarship", "admission"
-                ]):
-
-                    parsed = parse_job(line, site)
-                    jobs.append(parsed)
-
-        except Exception as e:
-            print("ERROR:", site, e)
-
-    return jobs
+    return filtered
